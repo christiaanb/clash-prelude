@@ -19,7 +19,8 @@ Maintainer :  Christiaan Baaij <christiaan.baaij@gmail.com>
 
 {-# LANGUAGE Trustworthy #-}
 
-{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.KnownNat.Solver #-}
+{-# OPTIONS_GHC -fplugin GHC.TypeLits.Normalise       #-}
 {-# OPTIONS_HADDOCK show-extensions #-}
 
 module CLaSH.Signal.Delayed.Explicit
@@ -46,13 +47,12 @@ import Data.Coerce                (coerce)
 import Data.Default               (Default(..))
 import GHC.TypeLits               (KnownNat, Nat, type (+))
 import Language.Haskell.TH.Syntax (Lift)
-import Prelude                    hiding (head, length, repeat)
+import Prelude                    hiding (head, length, repeat, tail)
 import Test.QuickCheck            (Arbitrary, CoArbitrary)
 
 import CLaSH.Promoted.Nat         (SNat)
-import CLaSH.Sized.Vector         (Vec, head, length, repeat, shiftInAt0,
-                                   singleton)
-import CLaSH.Signal               (fromList, fromList_lazy, bundle, unbundle)
+import CLaSH.Sized.Vector         (Vec ((:<)), head, length, repeat, tail)
+import CLaSH.Signal               (fromList, fromList_lazy)
 import CLaSH.Signal.Explicit      (Signal', Clock, SClock, register')
 
 {- $setup
@@ -126,11 +126,12 @@ delay' :: forall clk a n d . KnownNat d
 delay' clk m ds = coerce (delaySignal (coerce ds))
   where
     delaySignal :: Signal' clk a -> Signal' clk a
-    delaySignal s = case length m of
-      0 -> s
-      _ -> let (r',o) = shiftInAt0 (unbundle r) (singleton s)
-               r      = register' clk m (bundle r')
-           in  head o
+    delaySignal = case length m of
+      0 -> \i -> i
+      _ -> \i -> let s'' = (:<) <$> s <*> i
+                     s'  = tail <$> s''
+                     s   = register' clk m s'
+                 in  head (sequenceA s'')
 
 -- | Delay a 'DSignal' clk' for @m@ periods, where @m@ is derived from the
 -- context.
