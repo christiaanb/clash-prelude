@@ -156,7 +156,7 @@ signal# a = let s = a :- s in s
 
 {-# NOINLINE appSignal# #-}
 appSignal# :: Signal' clk (a -> b) -> Signal' clk a -> Signal' clk b
-appSignal# (f :- fs) xs@(~(a :- as)) = f a :- (xs `seq` appSignal# fs as) -- See [NOTE: Lazy ap]
+appSignal# (f :- fs) ~(a :- as) = f a :- (a `seqX` appSignal# fs as) -- See [NOTE: Lazy ap]
 
 {- NOTE: Lazy ap
 Signal's ap, i.e (Applicative.<*>), must be lazy in it's second argument:
