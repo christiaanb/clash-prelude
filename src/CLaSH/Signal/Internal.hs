@@ -89,7 +89,7 @@ where
 
 import Control.Applicative        (liftA2, liftA3)
 import Control.DeepSeq            (NFData, force)
-import Control.Exception          (catch, evaluate, throw)
+import Control.Exception          (SomeException, catch, evaluate, throw)
 import Data.Bits                  (Bits (..))
 import Data.Default               (Default (..))
 import GHC.TypeLits               (Nat, Symbol)
@@ -156,7 +156,14 @@ signal# a = let s = a :- s in s
 
 {-# NOINLINE appSignal# #-}
 appSignal# :: Signal' clk (a -> b) -> Signal' clk a -> Signal' clk b
-appSignal# (f :- fs) ~(a :- as) = f a :- (a `seqX` appSignal# fs as) -- See [NOTE: Lazy ap]
+appSignal# (f :- fs) ~(a :- as) = f a :- (a `seqNoException` appSignal# fs as) -- See [NOTE: Lazy ap]
+
+
+seqNoException :: a -> b -> b
+seqNoException a b = unsafeDupablePerformIO
+  (catch (evaluate a >> return b) (\(_ :: SomeException) -> return b))
+{-# NOINLINE seqNoException #-}
+infixr 0 `seqNoException`
 
 {- NOTE: Lazy ap
 Signal's ap, i.e (Applicative.<*>), must be lazy in it's second argument:
